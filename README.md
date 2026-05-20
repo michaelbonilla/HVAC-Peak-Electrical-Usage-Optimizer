@@ -1,7 +1,5 @@
 # HVAC Peak Electrical Usage Optimizer
 
-[Live Demo](https://michaelbonilla.github.io/HVAC-Peak-Electrical-Usage-Optimizer/)
-
 A lightweight, single-file web application that helps facility managers, engineers, and energy teams **stagger HVAC unit startups** to minimize peak electrical demand.
 
 By intelligently grouping units into "waves" and scheduling their startup sequences, you can significantly reduce the simultaneous load on your electrical system — lowering demand charges, improving power quality, and supporting demand-response goals.
