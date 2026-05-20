@@ -1,6 +1,6 @@
 # HVAC Peak Electrical Usage Optimizer
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo- michaelbonilla.github.io/HVAC--Peak--Electrical--Usage--Optimizer-blue?style=for-the-badge)](https://michaelbonilla.github.io/HVAC-Peak-Electrical-Usage-Optimizer/)
+[Live Demo](https://michaelbonilla.github.io/HVAC-Peak-Electrical-Usage-Optimizer/)
 
 A lightweight, single-file web application that helps facility managers, engineers, and energy teams **stagger HVAC unit startups** to minimize peak electrical demand.
 
