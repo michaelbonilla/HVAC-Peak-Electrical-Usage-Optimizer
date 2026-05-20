@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HVAC Peak Electrical Usage Optimizer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --bg:        #0d1117;
+    --surface:   #161b22;
+    --border:    #30363d;
+    --amber:     #f0a500;
+    --amber-dim: #7d5500;
+    --green:     #3fb950;
+    --red:       #f85149;
+    --blue:      #58a6ff;
+    --text:      #e6edf3;
+    --muted:     #adbac7;   /* was #8b949e — lifted for WCAG AA on dark surfaces */
+    --subtle:    #768390;   /* for decorative/secondary labels where size is larger */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+  .mono { font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace; }
+
+  /* Header */
+  .hdr {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 56px;
+  }
+  .hdr-logo {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .hdr-logo svg { color: var(--amber); }
+  .hdr-title {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .hdr-sub {
+    font-size: 11px;
+    color: var(--subtle);
+    letter-spacing: .04em;
+  }
+  .hdr-spacer { flex: 1; }
+  .save-badge {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .06em;
+    color: var(--subtle);
+    display: flex; align-items: center; gap: 6px;
+    transition: color .3s;
+  }
+  .save-badge.saved { color: var(--green); }
+
+  /* Layout */
+  .main { max-width: 1200px; margin: 0 auto; padding: 24px 24px 64px; }
+
+  /* Schedule bar */
+  .sched-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .sched-label {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    margin-right: 4px;
+  }
+  select, input[type="text"], input[type="time"], input[type="number"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  select:focus, input:focus { border-color: var(--amber); }
+  select { cursor: pointer; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px;
+    border-radius: 5px;
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all .15s;
+    text-transform: uppercase;
+  }
+  .btn-ghost {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+  }
+  .btn-ghost:hover { border-color: var(--amber); color: var(--amber); }
+  .btn-amber {
+    background: var(--amber);
+    color: #000;
+    border-color: var(--amber);
+  }
+  .btn-amber:hover { background: #ffd060; }
+  .btn-danger {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--red);
+  }
+  .btn-danger:hover { border-color: var(--red); background: rgba(248,81,73,.1); }
+  .btn-big {
+    padding: 12px 32px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+  .btn-green {
+    background: var(--green);
+    color: #000;
+    border-color: var(--green);
+  }
+  .btn-green:hover { background: #56d364; }
+
+  /* Section header */
+  .section-hdr {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--subtle);
+  }
+  .section-line { flex:1; height: 1px; background: var(--border); }
+
+  /* Table */
+  .tbl-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--bg); }
+  th {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 8px 14px; border-bottom: 1px solid rgba(48,54,61,.5); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,.02); }
+  td input { width: 100%; background: transparent; border: 1px solid transparent; padding: 4px 6px; border-radius: 4px; color: var(--text); }
+  td input:focus { border-color: var(--amber); background: var(--bg); color: var(--text); }
+
+  .del-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--subtle); padding: 2px 6px; border-radius: 4px;
+    font-size: 16px; transition: color .15s;
+  }
+  .del-btn:hover { color: var(--red); }
+
+  /* Metric cards */
+  .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+  @media(max-width:640px){ .metrics { grid-template-columns: repeat(2,1fr); } }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--amber);
+  }
+  .metric-card.peak::before { background: var(--red); }
+  .metric-card.waves::before { background: var(--blue); }
+  .metric-card.window::before { background: var(--green); }
+  .metric-label {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 9px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    margin-bottom: 8px;
+  }
+  .metric-val {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
+  }
+  .metric-unit { font-size: 13px; color: var(--subtle); margin-left: 2px; }
+
+  /* Wave cards */
+  .waves-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .wave-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    position: relative;
+  }
+  .wave-num {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .wave-time {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .wave-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+  .wave-stat { }
+  .wave-stat-label { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--subtle); }
+  .wave-stat-val { font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace; font-size: 14px; font-weight: 600; color: var(--text); }
+  .wave-bar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+    background: var(--amber-dim); border-radius: 0 0 8px 8px;
+  }
+  .wave-bar-fill {
+    height: 100%; background: var(--amber); border-radius: 0 0 8px 8px;
+    transition: width .4s ease;
+  }
+
+  /* Chart */
+  .chart-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 20px 14px;
+    margin-bottom: 20px;
+  }
+  .chart-title {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    margin-bottom: 14px;
+  }
+
+  /* Results unit table row colors */
+  .wave-1 td:first-child { border-left: 3px solid #f0a500; }
+  .wave-2 td:first-child { border-left: 3px solid #58a6ff; }
+  .wave-3 td:first-child { border-left: 3px solid #3fb950; }
+  .wave-4 td:first-child { border-left: 3px solid #f85149; }
+  .wave-5 td:first-child { border-left: 3px solid #a371f7; }
+  .wave-6 td:first-child { border-left: 3px solid #f0d500; }
+  .wave-n td:first-child { border-left: 3px solid var(--muted); }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+    opacity: 0; pointer-events: none;
+    transition: opacity .3s;
+    z-index: 999;
+  }
+  #toast.show { opacity: 1; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 32px; color: var(--subtle); font-size: 13px; }
+
+  .calculate-row {
+    display: flex; justify-content: center; gap: 16px; align-items: center;
+    margin: 24px 0;
+  }
+
+  /* Results fade-in */
+  #results { animation: fadeUp .3s ease; }
+  @keyframes fadeUp {
+    from { opacity:0; transform: translateY(12px); }
+    to   { opacity:1; transform: translateY(0); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Light mode ── */
+  /* Respects OS preference by default; overridden by data-theme attribute on <html> */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:        #f6f8fa;
+      --surface:   #ffffff;
+      --border:    #d0d7de;
+      --amber:     #b76400;
+      --amber-dim: #f0d8a8;
+      --green:     #1a7f37;
+      --red:       #cf222e;
+      --blue:      #0969da;
+      --text:      #1f2328;
+      --muted:     #4b5563;
+      --subtle:    #6e7781;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:        #f6f8fa;
+    --surface:   #ffffff;
+    --border:    #d0d7de;
+    --amber:     #b76400;
+    --amber-dim: #f0d8a8;
+    --green:     #1a7f37;
+    --red:       #cf222e;
+    --blue:      #0969da;
+    --text:      #1f2328;
+    --muted:     #4b5563;
+    --subtle:    #6e7781;
+  }
+
+  /* Smooth theme transitions */
+  *, *::before, *::after { transition: background-color .2s, border-color .2s, color .15s; }
+  /* But don't transition transforms/opacity (breaks animations) */
+  .wave-bar-fill { transition: width .4s ease, background-color .2s; }
+
+  /* Theme toggle button */
+  .theme-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--subtle);
+    cursor: pointer;
+    padding: 5px 8px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    transition: border-color .15s, color .15s;
+  }
+  .theme-toggle:hover { border-color: var(--amber); color: var(--amber); }
+  /* Show/hide icons based on current theme */
+  .icon-sun  { display: none; }
+  .icon-moon { display: block; }
+  [data-theme="light"] .icon-sun  { display: block; }
+  [data-theme="light"] .icon-moon { display: none; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .icon-sun  { display: block; }
+    :root:not([data-theme="dark"]) .icon-moon { display: none; }
+  }
+
+  /* Intro banner */
+  .intro-banner {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: rgba(240,165,0,.06);
+    border: 1px solid rgba(240,165,0,.2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+  .intro-banner strong { color: var(--text); }
+  .intro-banner em { color: var(--amber); font-style: normal; }
+  .intro-icon { color: var(--amber); flex-shrink: 0; margin-top: 1px; }
+  .intro-body { flex: 1; }
+
+  /* Help text */
+  .help-text {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin: 0 0 12px;
+  }
+  .help-text strong { color: var(--text); font-weight: 600; }
+  .help-text code {
+    font-family: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace;
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--amber);
+  }
+
+  /* Field hint (inline muted label) */
+  .field-hint {
+    font-size: 11px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  /* Calc hint below button */
+  .calc-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: .02em;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+    <div>
+      <div class="hdr-title">HVAC Peak Electrical Usage Optimizer</div>
+      <div class="hdr-sub">Staggered Start Scheduling · Demand Reduction</div>
+    </div>
+  </div>
+  <div class="hdr-spacer"></div>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+    <svg class="icon-moon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <svg class="icon-sun"  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <span id="themeLabel">Light</span>
+  </button>
+  <div class="save-badge" id="saveBadge">
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="5"/></svg>
+    <span id="saveText">UNSAVED</span>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- INTRO -->
+  <div class="intro-banner">
+    <div class="intro-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <div class="intro-body">
+      <strong>How it works:</strong> Enter each HVAC unit's name, the time it needs to be fully running (<em>Target Ready Time</em>), how long it takes to ramp up (<em>Ramp</em>), and its electrical draw (<em>Demand kW</em>). The optimizer groups units into staggered <em>waves</em> so that no two high-draw units start simultaneously, minimizing the peak load on your electrical system. Changes are saved automatically per schedule.
+    </div>
+  </div>
+
+  <!-- SCHEDULE BAR -->
+  <div class="sched-bar">
+    <span class="sched-label" title="Schedules let you save different building configurations — e.g. 'Main Building' vs 'Lab Wing'">Schedule</span>
+    <select id="scheduleSelect" onchange="switchSchedule()"></select>
+    <button class="btn btn-ghost" onclick="newSchedule()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New
+    </button>
+    <button class="btn btn-ghost" onclick="renameSchedule()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Rename
+    </button>
+    <button class="btn btn-danger" onclick="deleteSchedule()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+      Delete
+    </button>
+    <div style="flex:1"></div>
+    <button class="btn btn-ghost" onclick="exportCSV()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+    <label class="btn btn-ghost" style="cursor:pointer">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Import CSV
+      <input type="file" accept=".csv" style="display:none" onchange="importCSV(event)"/>
+    </label>
+  </div>
+
+  <div class="section-hdr">
+    <span class="section-title">Unit Configuration</span>
+    <div class="section-line"></div>
+  </div>
+  <p class="help-text">Add one row per HVAC unit. <strong>Target Ready Time</strong> is when the unit must be fully operational. <strong>Ramp</strong> is the startup duration in minutes. <strong>Demand</strong> is the electrical load during ramp-up in kilowatts. A 10% safety buffer is automatically applied to all ramp times.</p>
+
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:36px">#</th>
+          <th>Unit Name</th>
+          <th title="The time this unit must be fully running and ready for operation">Target Ready Time ↑</th>
+          <th title="How long the unit takes to start up and reach full operation (minutes). A 10% buffer is added automatically.">Ramp (min) ↑</th>
+          <th title="Electrical demand during startup, in kilowatts. The optimizer uses the largest single unit's kW as the max allowed per wave.">Demand (kW) ↑</th>
+          <th style="width:40px"></th>
+        </tr>
+      </thead>
+      <tbody id="unitTableBody"></tbody>
+    </table>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-bottom:8px; align-items:center; flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="addUnit()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Unit
+    </button>
+    <button class="btn btn-ghost" onclick="addSampleUnits()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Load Sample
+    </button>
+    <span class="field-hint">← Loads a 12-unit example (chillers, AHUs, pumps, VAVs) so you can see results immediately</span>
+  </div>
+  <p class="help-text" style="margin-bottom:24px">Tip: You can also <strong>Import CSV</strong> from the schedule bar above. The expected format is <code>name, target, ramp_minutes, kW</code> — easily edited in Excel or Google Sheets.</p>
+
+  <!-- CALCULATE -->
+  <div class="calculate-row">
+    <div style="text-align:center">
+      <button class="btn btn-amber btn-big" onclick="calculate()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Calculate Optimal Schedule
+      </button>
+      <div class="calc-hint">Groups units into staggered waves · Applies 10% ramp buffer · Schedules backwards from target times</div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" style="display:none">
+
+    <div class="divider"></div>
+
+    <div class="section-hdr">
+      <span class="section-title">Summary</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="help-text">Peak Demand is the highest simultaneous electrical load across all units at any point in the schedule. A positive Buffer means the unit finishes before its target time; negative (shown in red) means the target was too tight to satisfy fully.</p>
+    <div class="metrics" id="metricCards"></div>
+
+    <div class="section-hdr" style="margin-top:20px">
+      <span class="section-title">Wave Assignments</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="help-text">Each wave is a group of units that start together. Waves are ordered by required start time and sized so that no wave's total demand exceeds the largest single unit's kW — this minimizes peak load. The bar at the bottom of each card shows relative demand compared to the highest-demand wave.</p>
+    <div class="waves-grid" id="waveCards"></div>
+
+    <div class="section-hdr" style="margin-top:4px">
+      <span class="section-title">Demand Profile</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="help-text">The stepped chart shows total electrical demand in kW at every point across the schedule. Gaps between waves are the buffer periods. Hover over the chart for exact values at any time.</p>
+    <div class="chart-wrap">
+      <div class="chart-title">Instantaneous Electrical Demand (kW) vs Time</div>
+      <canvas id="demandChart" height="90"></canvas>
+    </div>
+
+    <div class="section-hdr">
+      <span class="section-title">Detailed Unit Schedule</span>
+      <div class="section-line"></div>
+    </div>
+    <p class="help-text">All units sorted by actual start time. <strong>Start Time</strong> is when to switch the unit on. <strong>End Time</strong> is when it finishes ramping up. <strong>Buffer</strong> is the margin between end time and target ready time — green means ahead of schedule, red means the target was unreachable given the constraints.</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Unit Name</th>
+            <th>Wave</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Ramp (min)</th>
+            <th>Demand (kW)</th>
+            <th>Target Ready</th>
+            <th>Buffer (min)</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+  </div><!-- /results -->
+
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<script>
+// ─── State ──────────────────────────────────────────────────────────────────
+let schedules = {};
+let currentSchedule = 'Default';
+let chartInstance = null;
+let nextId = 1;
+
+const WAVE_COLORS = ['#f0a500','#58a6ff','#3fb950','#f85149','#a371f7','#f0d500','#79c0ff','#ffa198'];
+
+// ─── Persistence ─────────────────────────────────────────────────────────────
+function save() {
+  localStorage.setItem('hvac_schedules', JSON.stringify(schedules));
+  localStorage.setItem('hvac_current', currentSchedule);
+  localStorage.setItem('hvac_nextid', String(nextId));
+  setSaveBadge(true);
+}
+
+function load() {
+  const s = localStorage.getItem('hvac_schedules');
+  const c = localStorage.getItem('hvac_current');
+  const n = localStorage.getItem('hvac_nextid');
+  if (s) {
+    schedules = JSON.parse(s);
+    if (n) nextId = parseInt(n);
+    currentSchedule = c && schedules[c] ? c : Object.keys(schedules)[0];
+  } else {
+    schedules = { 'Default': [] };
+    currentSchedule = 'Default';
+  }
+}
+
+function setSaveBadge(saved) {
+  const badge = document.getElementById('saveBadge');
+  const txt = document.getElementById('saveText');
+  if (saved) {
+    badge.className = 'save-badge saved';
+    txt.textContent = 'SAVED';
+  } else {
+    badge.className = 'save-badge';
+    txt.textContent = 'UNSAVED';
+  }
+}
+
+// ─── Unit helpers ─────────────────────────────────────────────────────────────
+function units() { return schedules[currentSchedule] || []; }
+
+function addUnit(name='', target='08:00', ramp=30, kW=10) {
+  schedules[currentSchedule].push({ id: nextId++, name: name || `Unit ${nextId-1}`, target, ramp, kW });
+  renderTable();
+  save();
+}
+
+function addSampleUnits() {
+  const samples = [
+    { name:'AHU-1 Main',       target:'08:00', ramp:25, kW:18.5 },
+    { name:'AHU-2 East',       target:'08:00', ramp:20, kW:12.0 },
+    { name:'AHU-3 West',       target:'08:00', ramp:20, kW:12.0 },
+    { name:'Chiller-A',        target:'07:45', ramp:45, kW:85.0 },
+    { name:'Chiller-B',        target:'07:45', ramp:45, kW:85.0 },
+    { name:'CW Pump 1',        target:'07:30', ramp:5,  kW:7.5  },
+    { name:'CW Pump 2',        target:'07:30', ramp:5,  kW:7.5  },
+    { name:'Cooling Tower',    target:'07:35', ramp:10, kW:15.0 },
+    { name:'VAV Box Zone A',   target:'08:05', ramp:15, kW:4.2  },
+    { name:'VAV Box Zone B',   target:'08:05', ramp:15, kW:4.2  },
+    { name:'VAV Box Zone C',   target:'08:10', ramp:15, kW:3.8  },
+    { name:'Exhaust Fan',      target:'08:00', ramp:5,  kW:2.5  },
+  ];
+  schedules[currentSchedule] = [];
+  samples.forEach(u => { schedules[currentSchedule].push({ id: nextId++, ...u }); });
+  renderTable();
+  save();
+  document.getElementById('results').style.display = 'none';
+  toast('Sample data loaded');
+}
+
+function deleteUnit(id) {
+  schedules[currentSchedule] = schedules[currentSchedule].filter(u => u.id !== id);
+  renderTable();
+  save();
+}
+
+function getUnitField(id, field) {
+  return document.getElementById(`u_${id}_${field}`)?.value;
+}
+
+function syncUnitsFromDOM() {
+  schedules[currentSchedule].forEach(u => {
+    u.name   = getUnitField(u.id, 'name')   || u.name;
+    u.target = getUnitField(u.id, 'target') || u.target;
+    u.ramp   = parseFloat(getUnitField(u.id, 'ramp'))  || u.ramp;
+    u.kW     = parseFloat(getUnitField(u.id, 'kw'))    || u.kW;
+  });
+}
+
+// ─── Schedule management ──────────────────────────────────────────────────────
+function rebuildScheduleDropdown() {
+  const sel = document.getElementById('scheduleSelect');
+  sel.innerHTML = '';
+  Object.keys(schedules).forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name; opt.textContent = name;
+    if (name === currentSchedule) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function switchSchedule() {
+  syncUnitsFromDOM();
+  save();
+  currentSchedule = document.getElementById('scheduleSelect').value;
+  localStorage.setItem('hvac_current', currentSchedule);
+  renderTable();
+  document.getElementById('results').style.display = 'none';
+}
+
+function newSchedule() {
+  const name = prompt('Schedule name:');
+  if (!name || name.trim() === '') return;
+  const n = name.trim();
+  if (schedules[n]) { alert('Name already exists.'); return; }
+  syncUnitsFromDOM();
+  schedules[n] = [];
+  currentSchedule = n;
+  rebuildScheduleDropdown();
+  renderTable();
+  save();
+}
+
+function renameSchedule() {
+  const name = prompt('New name:', currentSchedule);
+  if (!name || name.trim() === '' || name.trim() === currentSchedule) return;
+  const n = name.trim();
+  if (schedules[n]) { alert('Name already exists.'); return; }
+  schedules[n] = schedules[currentSchedule];
+  delete schedules[currentSchedule];
+  currentSchedule = n;
+  rebuildScheduleDropdown();
+  save();
+}
+
+function deleteSchedule() {
+  if (Object.keys(schedules).length === 1) { alert('Cannot delete the last schedule.'); return; }
+  if (!confirm(`Delete "${currentSchedule}"?`)) return;
+  delete schedules[currentSchedule];
+  currentSchedule = Object.keys(schedules)[0];
+  rebuildScheduleDropdown();
+  renderTable();
+  document.getElementById('results').style.display = 'none';
+  save();
+}
+
+// ─── CSV ─────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  syncUnitsFromDOM();
+  const rows = ['name,target,ramp_minutes,kW'];
+  units().forEach(u => rows.push(`"${u.name}",${u.target},${u.ramp},${u.kW}`));
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentSchedule.replace(/\s+/g,'_')}.csv`;
+  a.click();
+  toast('CSV exported');
+}
+
+function importCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split('\n');
+    const imported = [];
+    lines.slice(1).forEach(line => {
+      if (!line.trim()) return;
+      // Handle quoted fields
+      const cols = line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map(c => c.replace(/^"|"$/g,'').trim()) || line.split(',');
+      if (cols.length < 4) return;
+      const [name, target, ramp, kW] = cols;
+      if (!name || !target) return;
+      imported.push({ id: nextId++, name, target: target||'08:00', ramp: parseFloat(ramp)||30, kW: parseFloat(kW)||10 });
+    });
+    if (imported.length === 0) { alert('No valid rows found in CSV.'); return; }
+    schedules[currentSchedule] = imported;
+    renderTable();
+    save();
+    document.getElementById('results').style.display = 'none';
+    toast(`Imported ${imported.length} units`);
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ─── Render Table ─────────────────────────────────────────────────────────────
+function renderTable() {
+  rebuildScheduleDropdown();
+  const tbody = document.getElementById('unitTableBody');
+  const list = units();
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty">No units configured. Click "Add Unit" or "Load Sample" to begin.</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map((u, i) => `
+    <tr>
+      <td class="mono" style="color:var(--muted);font-size:11px">${i+1}</td>
+      <td><input id="u_${u.id}_name" value="${esc(u.name)}" onchange="markDirty()" placeholder="Unit name"/></td>
+      <td><input id="u_${u.id}_target" type="time" value="${u.target}" onchange="markDirty()"/></td>
+      <td><input id="u_${u.id}_ramp" type="number" value="${u.ramp}" min="1" max="480" onchange="markDirty()"/></td>
+      <td><input id="u_${u.id}_kw" type="number" value="${u.kW}" min="0.1" step="0.1" onchange="markDirty()"/></td>
+      <td><button class="del-btn" onclick="deleteUnit(${u.id})" title="Remove">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function markDirty() { setSaveBadge(false); }
+function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ─── Optimization Logic ───────────────────────────────────────────────────────
+function timeToMins(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+function minsToTime(m) {
+  const h = Math.floor(m / 60) % 24;
+  const min = Math.floor(m % 60);
+  return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+}
+function minsToTimeHM(m) {
+  const h = Math.floor(m / 60) % 24;
+  const min = Math.floor(m % 60);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = h % 12 || 12;
+  return `${hh}:${String(min).padStart(2,'0')} ${ampm}`;
+}
+
+function calculate() {
+  syncUnitsFromDOM();
+  save();
+  const list = units();
+  if (list.length === 0) { alert('Add at least one unit.'); return; }
+
+  // 1. Required start for each unit
+  const us = list.map(u => ({
+    ...u,
+    target_m: timeToMins(u.target),
+    req_start: timeToMins(u.target) - u.ramp * 1.1
+  }));
+
+  // 2. Sort: req_start asc, ramp desc
+  us.sort((a, b) => a.req_start !== b.req_start ? a.req_start - b.req_start : b.ramp - a.ramp);
+
+  // 3. P = max kW of any single unit
+  const P = Math.max(...us.map(u => u.kW));
+
+  // 4. Greedy wave packing
+  const waves = [];
+  let waveUnits = [];
+  let waveSum = 0;
+
+  for (const u of us) {
+    if (waveUnits.length === 0 || waveSum + u.kW <= P) {
+      waveUnits.push(u);
+      waveSum += u.kW;
+    } else {
+      waves.push(waveUnits);
+      waveUnits = [u];
+      waveSum = u.kW;
+    }
+  }
+  if (waveUnits.length > 0) waves.push(waveUnits);
+
+  // 5. Aggregate wave properties
+  const waveData = waves.map(units => ({
+    units,
+    req_start: Math.min(...units.map(u => u.req_start)),
+    max_ramp:  Math.max(...units.map(u => u.ramp)),
+    total_kW:  units.reduce((s, u) => s + u.kW, 0),
+  }));
+
+  // 6. Sort waves
+  waveData.sort((a, b) =>
+    a.req_start !== b.req_start ? a.req_start - b.req_start : b.max_ramp - a.max_ramp
+  );
+
+  // 7. Backward scheduling
+  const last = waveData.length - 1;
+  waveData[last].actual_start = waveData[last].req_start;
+  for (let i = last - 1; i >= 0; i--) {
+    const candidate = waveData[i + 1].actual_start - waveData[i].max_ramp * 1.1;
+    waveData[i].actual_start = Math.min(waveData[i].req_start, candidate);
+  }
+
+  // 8. Assign times to units
+  const allUnits = [];
+  waveData.forEach((wave, wi) => {
+    wave.waveNum = wi + 1;
+    wave.units.forEach(u => {
+      u.waveNum = wi + 1;
+      u.actual_start = wave.actual_start;
+      u.end_time = u.actual_start + u.ramp;
+      u.buffer = u.target_m - u.end_time;
+      allUnits.push(u);
+    });
+  });
+
+  // 9. Peak sweep
+  const events = [];
+  allUnits.forEach(u => {
+    events.push({ t: u.actual_start, delta: +u.kW });
+    events.push({ t: u.end_time,     delta: -u.kW });
+  });
+  events.sort((a, b) => a.t - b.t || a.delta - b.delta);
+
+  let power = 0, peakKW = 0;
+  const chartPoints = [];
+  const tMin = Math.floor(Math.min(...allUnits.map(u => u.actual_start))) - 2;
+  const tMax = Math.ceil(Math.max(...allUnits.map(u => u.end_time)))   + 2;
+  chartPoints.push({ x: tMin, y: 0 });
+
+  for (const ev of events) {
+    chartPoints.push({ x: ev.t, y: power });
+    power = Math.round((power + ev.delta) * 10) / 10;
+    chartPoints.push({ x: ev.t, y: power });
+    if (power > peakKW) peakKW = power;
+  }
+  chartPoints.push({ x: tMax, y: 0 });
+
+  const timeWindow = Math.max(...allUnits.map(u => u.end_time)) - Math.min(...allUnits.map(u => u.actual_start));
+
+  renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, P);
+}
+
+// ─── Render Results ───────────────────────────────────────────────────────────
+function renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, maxWaveKW) {
+  const res = document.getElementById('results');
+  res.style.display = 'block';
+
+  // Metric cards
+  document.getElementById('metricCards').innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Total Units</div>
+      <div class="metric-val">${allUnits.length}</div>
+    </div>
+    <div class="metric-card waves">
+      <div class="metric-label">Waves</div>
+      <div class="metric-val">${waveData.length}</div>
+    </div>
+    <div class="metric-card peak">
+      <div class="metric-label">Peak Demand</div>
+      <div class="metric-val">${peakKW.toFixed(1)}<span class="metric-unit">kW</span></div>
+    </div>
+    <div class="metric-card window">
+      <div class="metric-label">Time Window</div>
+      <div class="metric-val">${timeWindow.toFixed(0)}<span class="metric-unit">min</span></div>
+    </div>
+  `;
+
+  // Wave cards
+  const maxWaveKWActual = Math.max(...waveData.map(w => w.total_kW));
+  document.getElementById('waveCards').innerHTML = waveData.map((w, i) => `
+    <div class="wave-card" style="border-top: 2px solid ${WAVE_COLORS[i % WAVE_COLORS.length]}">
+      <div class="wave-num">Wave ${w.waveNum}</div>
+      <div class="wave-time mono">${minsToTimeHM(w.actual_start)}</div>
+      <div class="wave-stats">
+        <div class="wave-stat">
+          <div class="wave-stat-label">Total kW</div>
+          <div class="wave-stat-val" style="color:${WAVE_COLORS[i % WAVE_COLORS.length]}">${w.total_kW.toFixed(1)}</div>
+        </div>
+        <div class="wave-stat">
+          <div class="wave-stat-label">Units</div>
+          <div class="wave-stat-val">${w.units.length}</div>
+        </div>
+        <div class="wave-stat">
+          <div class="wave-stat-label">Max Ramp</div>
+          <div class="wave-stat-val">${w.max_ramp} min</div>
+        </div>
+      </div>
+      <div class="wave-bar"><div class="wave-bar-fill" style="width:${(w.total_kW/maxWaveKWActual*100).toFixed(1)}%;background:${WAVE_COLORS[i % WAVE_COLORS.length]}"></div></div>
+    </div>
+  `).join('');
+
+  // Sorted unit detail table
+  const sorted = [...allUnits].sort((a, b) => a.actual_start - b.actual_start || a.waveNum - b.waveNum);
+  const waveClass = n => n <= 6 ? `wave-${n}` : 'wave-n';
+  document.getElementById('resultsBody').innerHTML = sorted.map(u => `
+    <tr class="${waveClass(u.waveNum)}">
+      <td>${esc(u.name)}</td>
+      <td><span class="mono" style="color:${WAVE_COLORS[(u.waveNum-1) % WAVE_COLORS.length]}">W${u.waveNum}</span></td>
+      <td class="mono">${minsToTimeHM(u.actual_start)}</td>
+      <td class="mono">${minsToTimeHM(u.end_time)}</td>
+      <td class="mono">${u.ramp}</td>
+      <td class="mono">${u.kW.toFixed(1)}</td>
+      <td class="mono">${minsToTimeHM(u.target_m)}</td>
+      <td class="mono" style="color:${u.buffer >= 0 ? 'var(--green)' : 'var(--red)'}">${u.buffer >= 0 ? '+' : ''}${u.buffer.toFixed(1)}</td>
+    </tr>
+  `).join('');
+
+  // Chart
+  if (chartInstance) chartInstance.destroy();
+  const ctx = document.getElementById('demandChart').getContext('2d');
+
+  const labels = chartPoints.map(p => minsToTime(p.x));
+  const data   = chartPoints.map(p => p.y);
+
+  // Fill gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, 300);
+  grad.addColorStop(0,   'rgba(240,165,0,0.3)');
+  grad.addColorStop(1,   'rgba(240,165,0,0.0)');
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: '#f0a500',
+        borderWidth: 2,
+        pointRadius: 0,
+        stepped: true,
+        fill: true,
+        backgroundColor: grad,
+        tension: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 400 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: item => ` ${item.raw} kW`,
+          },
+          backgroundColor: '#161b22',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#768390',
+          bodyColor: '#f0a500',
+          bodyFont: { family: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace", size: 12 },
+          titleFont: { family: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace", size: 11 },
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#768390',
+            font: { family: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace", size: 10 },
+            maxTicksLimit: 12,
+            maxRotation: 0,
+          },
+          grid: { color: 'rgba(48,54,61,0.6)' },
+          border: { color: '#30363d' }
+        },
+        y: {
+          min: 0,
+          ticks: {
+            color: '#768390',
+            font: { family: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace", size: 10 },
+            callback: v => `${v} kW`,
+          },
+          grid: { color: 'rgba(48,54,61,0.6)' },
+          border: { color: '#30363d' }
+        }
+      }
+    }
+  });
+
+  res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '✓ ' + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  const root = document.documentElement;
+  const label = document.getElementById('themeLabel');
+  if (theme === 'light') {
+    root.setAttribute('data-theme', 'light');
+    label.textContent = 'Dark';
+  } else {
+    root.setAttribute('data-theme', 'dark');
+    label.textContent = 'Light';
+  }
+  localStorage.setItem('hvac_theme', theme);
+  // Update hardcoded chart colors
+  updateChartColors();
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  // If not explicitly set, check system preference
+  const effective = current || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  applyTheme(effective === 'light' ? 'dark' : 'light');
+}
+
+function updateChartColors() {
+  if (!chartInstance) return;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor   = isLight ? 'rgba(208,215,222,0.8)' : 'rgba(48,54,61,0.6)';
+  const borderColor = isLight ? '#d0d7de'                : '#30363d';
+  const tickColor   = isLight ? '#6e7781'                : '#768390';
+  const tooltipBg   = isLight ? '#ffffff'                : '#161b22';
+  const amberColor  = isLight ? '#b76400'                : '#f0a500';
+
+  chartInstance.options.scales.x.grid.color   = gridColor;
+  chartInstance.options.scales.x.border.color = borderColor;
+  chartInstance.options.scales.x.ticks.color  = tickColor;
+  chartInstance.options.scales.y.grid.color   = gridColor;
+  chartInstance.options.scales.y.border.color = borderColor;
+  chartInstance.options.scales.y.ticks.color  = tickColor;
+  chartInstance.options.plugins.tooltip.backgroundColor = tooltipBg;
+  chartInstance.options.plugins.tooltip.borderColor     = borderColor;
+  chartInstance.options.plugins.tooltip.bodyColor       = amberColor;
+  chartInstance.data.datasets[0].borderColor = amberColor;
+
+  // Rebuild gradient for new theme
+  const ctx = document.getElementById('demandChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 300);
+  grad.addColorStop(0, isLight ? 'rgba(183,100,0,0.15)' : 'rgba(240,165,0,0.3)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  chartInstance.data.datasets[0].backgroundColor = grad;
+
+  chartInstance.update('none');
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+load();
+rebuildScheduleDropdown();
+renderTable();
+setSaveBadge(true);
+
+// Restore theme — explicit saved pref wins; otherwise follow OS
+const savedTheme = localStorage.getItem('hvac_theme');
+if (savedTheme) {
+  applyTheme(savedTheme);
+} else {
+  // Set label to reflect OS default without writing to localStorage
+  const isLightOS = window.matchMedia('(prefers-color-scheme: light)').matches;
+  document.getElementById('themeLabel').textContent = isLightOS ? 'Dark' : 'Light';
+}
+</script>
+</body>
+</html>
