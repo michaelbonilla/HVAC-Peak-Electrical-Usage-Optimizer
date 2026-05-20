@@ -669,7 +669,7 @@ function setSaveBadge(saved) {
 function units() { return schedules[currentSchedule] || []; }
 
 function addUnit(name='', target='08:00', ramp=30, kW=10) {
-  syncUnitsFromDOM();
+  syncUnitsFromDOM();  // ensure any prior edits (names, times, etc.) are saved before adding
   schedules[currentSchedule].push({ id: nextId++, name: name || `Unit ${nextId-1}`, target, ramp, kW });
   renderTable();
   save();
@@ -1022,9 +1022,6 @@ function renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, maxW
   if (chartInstance) chartInstance.destroy();
   const ctx = document.getElementById('demandChart').getContext('2d');
 
-  const labels = chartPoints.map(p => minsToTime(p.x));
-  const data   = chartPoints.map(p => p.y);
-
   // Fill gradient
   const grad = ctx.createLinearGradient(0, 0, 0, 300);
   grad.addColorStop(0,   'rgba(240,165,0,0.3)');
@@ -1033,9 +1030,8 @@ function renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, maxW
   chartInstance = new Chart(ctx, {
     type: 'line',
     data: {
-      labels,
       datasets: [{
-        data,
+        data: chartPoints,  // {x: minutes, y: kW} → linear time scale for continuous, proportionally-spaced x-axis (no category gaps)
         borderColor: '#f0a500',
         borderWidth: 2,
         pointRadius: 0,
@@ -1052,8 +1048,8 @@ function renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, maxW
         legend: { display: false },
         tooltip: {
           callbacks: {
-            title: items => items[0].label,
-            label: item => ` ${item.raw} kW`,
+            title: items => minsToTime(items[0].parsed.x),
+            label: item => ` ${item.formattedValue || item.raw} kW`,
           },
           backgroundColor: '#161b22',
           borderColor: '#30363d',
@@ -1066,11 +1062,13 @@ function renderResults(waveData, allUnits, chartPoints, peakKW, timeWindow, maxW
       },
       scales: {
         x: {
+          type: 'linear',
           ticks: {
             color: '#768390',
             font: { family: "ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', monospace", size: 10 },
             maxTicksLimit: 12,
             maxRotation: 0,
+            callback: (value) => minsToTime(value),
           },
           grid: { color: 'rgba(48,54,61,0.6)' },
           border: { color: '#30363d' }
