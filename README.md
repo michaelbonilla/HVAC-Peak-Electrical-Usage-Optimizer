@@ -122,10 +122,16 @@ When contributing, please:
 
 This project is released under the **MIT License**.
 
+## Support
+
+If this tool has saved you time or money on demand charges, consider buying me a pizza! 🍕
+
+[![Buy Me a Pizza](https://img.shields.io/badge/Buy%20Me%20a%20Pizza-ffdd00?style=for-the-badge&logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/michaelbonilla)
+
 ---
 
 **Made for facility engineers, energy managers, and anyone trying to tame HVAC startup peaks.**
 
 Open the [live demo](https://michaelbonilla.github.io/HVAC-Peak-Electrical-Usage-Optimizer/), load the sample, and see your peak demand drop. ⚡
 
-If you find it useful, consider starring the repo or sharing it with your facilities team!
+If you find it useful, consider starring the repo, sharing it with your facilities team, or [buying me a pizza](https://buymeacoffee.com/michaelbonilla)!
