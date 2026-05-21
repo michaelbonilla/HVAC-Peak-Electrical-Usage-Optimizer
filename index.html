@@ -829,7 +829,9 @@ function importCSV(event) {
       if (cols.length < 4) return;
       const [name, target, ramp, kW] = cols;
       if (!name || !target) return;
-      imported.push({ id: nextId++, name, target: target||'08:00', ramp: parseFloat(ramp)||30, kW: parseFloat(kW)||10 });
+      // Normalize time: Excel strips leading zeros (e.g. "8:05" → "08:05")
+      const normalizedTarget = target.replace(/^(\d):/, '0$1:') || '08:00';
+      imported.push({ id: nextId++, name, target: normalizedTarget, ramp: parseFloat(ramp)||30, kW: parseFloat(kW)||10 });
     });
     if (imported.length === 0) { alert('No valid rows found in CSV.'); return; }
     schedules[currentSchedule] = imported;
